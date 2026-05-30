@@ -1,0 +1,291 @@
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+
+_G.AutoFarm = false
+_G.TargetCFrame = nil
+local NpcCFrame = CFrame.new(1059, 16, 1549)
+
+----------------------------------------------------------------
+-- [CƠ CHẾ FIX LAG & XÓA ĐỒ HỌA CỰC HẠN]
+----------------------------------------------------------------
+local function optimizeFPS()
+    if Terrain then
+        Terrain.WaterWaveSize = 0
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+        Terrain.WaterTransparency = 0
+    end
+    
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 9e9
+    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    
+    for _, v in ipairs(Lighting:GetChildren()) do
+        if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+            v:Destroy()
+        end
+    end
+
+    local function cleanObject(v)
+        if v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("Part") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+            v.CastShadow = false
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Fire") then
+            v.Enabled = false
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v:Destroy()
+        end
+    end
+
+    for _, v in ipairs(workspace:GetDescendants()) do
+        cleanObject(v)
+    end
+
+    workspace.DescendantAdded:Connect(function(v)
+        cleanObject(v)
+    end)
+end
+
+optimizeFPS()
+
+----------------------------------------------------------------
+-- [XÂY DỰNG GIAO DIỆN THEO ẢNH MẪU]
+----------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BananaHubUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local StatusBar = Instance.new("Frame")
+StatusBar.Name = "StatusBar"
+StatusBar.Size = UDim2.new(0, 380, 0, 40)
+StatusBar.Position = UDim2.new(0.5, -190, 0, 15)
+StatusBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+StatusBar.BorderColor3 = Color3.fromRGB(212, 163, 89)
+StatusBar.BorderSizePixel = 1
+StatusBar.Parent = ScreenGui
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 1, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Auto Farm: None"
+StatusLabel.TextColor3 = Color3.fromRGB(212, 163, 89)
+StatusLabel.TextSize = 14
+StatusLabel.Font = Enum.Font.SourceSansBold
+StatusLabel.Parent = StatusBar
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 450, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BorderColor3 = Color3.fromRGB(212, 163, 89)
+MainFrame.BorderSizePixel = 1
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MenuTitle = Instance.new("TextLabel")
+MenuTitle.Size = UDim2.new(1, 0, 0, 40)
+MenuTitle.BackgroundTransparency = 1
+MenuTitle.Text = "Banana Stats Checker"
+MenuTitle.TextColor3 = Color3.fromRGB(212, 163, 89)
+MenuTitle.TextSize = 16
+MenuTitle.Font = Enum.Font.SourceSansBold
+MenuTitle.Parent = MainFrame
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Size = UDim2.new(0, 200, 0, 40)
+ToggleBtn.Position = UDim2.new(0.5, -100, 0.5, -20)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+ToggleBtn.BorderColor3 = Color3.fromRGB(212, 163, 89)
+ToggleBtn.Text = "START AUTO FARM"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 14
+ToggleBtn.Font = Enum.Font.SourceSansBold
+ToggleBtn.Parent = MainFrame
+
+local CloseOpenBtn = Instance.new("TextButton")
+CloseOpenBtn.Name = "CloseOpenBtn"
+CloseOpenBtn.Size = UDim2.new(0, 45, 0, 45)
+CloseOpenBtn.Position = UDim2.new(0, 15, 0.25, 0)
+CloseOpenBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+CloseOpenBtn.Text = "B"
+CloseOpenBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+CloseOpenBtn.TextSize = 18
+CloseOpenBtn.Font = Enum.Font.SourceSansBold
+CloseOpenBtn.Parent = ScreenGui
+
+local CircleCorner = Instance.new("UICorner")
+CircleCorner.CornerRadius = UDim.new(1, 0)
+CircleCorner.Parent = CloseOpenBtn
+
+local UiVisible = true
+CloseOpenBtn.MouseButton1Click:Connect(function()
+    UiVisible = not UiVisible
+    MainFrame.Visible = UiVisible
+    StatusBar.Visible = UiVisible
+end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    _G.AutoFarm = not _G.AutoFarm
+    if _G.AutoFarm then
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 40)
+        ToggleBtn.Text = "STOP AUTO FARM"
+        StatusLabel.Text = "Auto Farm: Level [Bandit]"
+    else
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        ToggleBtn.Text = "START AUTO FARM"
+        StatusLabel.Text = "Auto Farm: None"
+        _G.TargetCFrame = nil
+    end
+end)
+
+----------------------------------------------------------------
+-- [CƠ CHẾ THÔNG MINH BỔ SUNG]
+----------------------------------------------------------------
+
+-- 1. Tìm Trái Ác Quỷ rơi rớt trên map
+local function getFruit()
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v:IsA("Tool") and (string.find(v.Name, "Fruit") or string.find(v.Name, "Trái")) then
+            return v
+        end
+    end
+    return nil
+end
+
+-- 2. Tự động cất trái ác quỷ vào rương lưu trữ
+local function storeFruit()
+    local character = plr.Character
+    if character then
+        local fruit = character:FindFirstChildOfClass("Tool")
+        if fruit and (string.find(fruit.Name, "Fruit") or string.find(fruit.Name, "Trái")) then
+            -- Gọi lệnh cất trái vào kho lưu trữ từ xa
+            CommF:InvokeServer("StoreFruit", fruit.Name, fruit)
+        end
+    end
+end
+
+-- 3. Tự động mua võ chân (Dark Step) khi đủ tiền
+local hasBoughtDarkStep = false
+local function autoBuyMelee()
+    if not hasBoughtDarkStep and plr.Data.Beli.Value >= 150000 then
+        -- Gửi tín hiệu mua võ chân từ xa tới NPC Black Leg Teacher
+        local buyResult = CommF:InvokeServer("BuyBlackLeg")
+        if buyResult then
+            hasBoughtDarkStep = true
+            StatusLabel.Text = "Hệ thống: Đã tự động mua Chân Hắc Cước!"
+        end
+    end
+end
+
+----------------------------------------------------------------
+-- [LOGIC CODE FARM]
+----------------------------------------------------------------
+local function getMonster()
+    for _, v in ipairs(workspace.Enemies:GetChildren()) do
+        if v.Name == "Bandit" and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+            return v
+        end
+    end
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v.Name == "Bandit" and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
+            return v
+        end
+    end
+    return nil
+end
+
+local function hasQuest()
+    local mainGui = plr.PlayerGui:FindFirstChild("Main")
+    local questFrame = mainGui and mainGui:FindFirstChild("Quest")
+    return questFrame and questFrame.Visible == true
+end
+
+local function fastAttack(monster)
+    local character = plr.Character
+    local tool = character and character:FindFirstChildOfClass("Tool")
+    
+    if tool and monster and monster:FindFirstChild("HumanoidRootPart") then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton1(Vector2.new(850, 520))
+        
+        local combatRemote = ReplicatedStorage:FindFirstChild("RigControllerCombat") or ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("Validator")
+        if combatRemote then
+            combatRemote:FireServer(monster.HumanoidRootPart.Position)
+        end
+    end
+end
+
+-- Vòng lặp chính điều khiển toàn bộ logic thông minh
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.AutoFarm then
+            -- Luôn kiểm tra tiền để mua Melee trước
+            autoBuyMelee()
+            
+            -- ƯU TIÊN 1: Kiểm tra xem trên map có Trái Ác Quỷ nào không
+            local targetFruit = getFruit()
+            if targetFruit and targetFruit:FindFirstChild("Handle") then
+                StatusLabel.Text = "Phát hiện Trái Ác Quỷ! Đang bay tới nhặt..."
+                _G.TargetCFrame = targetFruit.Handle.CFrame
+                
+                -- Đợi nhặt lên tay rồi tự động lưu trữ
+                task.wait(0.5)
+                storeFruit()
+            else
+                -- ƯU TIÊN 2: Nếu không có Trái Ác Quỷ thì tiếp tục farm quái bình thường
+                if not hasQuest() then
+                    _G.TargetCFrame = NpcCFrame
+                    CommF:InvokeServer("StartQuest", "BanditQuest", 1)
+                else
+                    local targetMonster = getMonster()
+                    if targetMonster then
+                        StatusLabel.Text = "Auto Farm: Level [Bandit]"
+                        _G.TargetCFrame = targetMonster.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                        fastAttack(targetMonster)
+                    else
+                        _G.TargetCFrame = NpcCFrame
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Vòng lặp xử lý di chuyển Bay (Fly) kết hợp Xuyên Tường (NoClip)
+RunService.Stepped:Connect(function()
+    if _G.AutoFarm then
+        local character = plr.Character
+        if character then
+            for _, child in ipairs(character:GetChildren()) do
+                if child:IsA("BasePart") then
+                    child.CanCollide = false
+                end
+            end
+        end
+        
+        if _G.TargetCFrame then
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            
+            if rootPart and humanoid and humanoid.Health > 0 then
+                rootPart.Velocity = Vector3.new(0, 0, 0)
+                rootPart.CFrame = _G.TargetCFrame
+            end
+        end
+    end
+end)
