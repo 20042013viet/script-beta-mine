@@ -4,12 +4,22 @@ local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
 local Terrain = workspace:FindFirstChildOfClass("Terrain")
 
 local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+
+-- TỰ ĐỘNG CHỌN TEAM HẢI TẶC KHI VÀO GAME
+local function joinPirates()
+    local success = pcall(function()
+        if plr.Team == nil or plr.Team.Name == "Choosing" then
+            CommF:InvokeServer("SetTeam", "Pirates")
+        end
+    end)
+    return success
+end
+joinPirates()
 
 _G.AutoFarm = false
 _G.TargetCFrame = nil
@@ -25,7 +35,6 @@ local function optimizeFPS()
         Terrain.WaterReflectance = 0
         Terrain.WaterTransparency = 0
     end
-    
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 9e9
     settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
@@ -35,7 +44,6 @@ local function optimizeFPS()
             v:Destroy()
         end
     end
-
     local function cleanObject(v)
         if v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("Part") then
             v.Material = Enum.Material.SmoothPlastic
@@ -47,26 +55,23 @@ local function optimizeFPS()
             v:Destroy()
         end
     end
-
     for _, v in ipairs(workspace:GetDescendants()) do
         cleanObject(v)
     end
-
     workspace.DescendantAdded:Connect(function(v)
         cleanObject(v)
     end)
 end
-
 optimizeFPS()
 
 ----------------------------------------------------------------
--- [XÂY DỰNG GIAO DIỆN THEO ẢNH MẪU]
+-- [XÂY DỰNG GIAO DIỆN CHUẨN 100% THEO ẢNH]
 ----------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BananaHubUI"
 ScreenGui.Parent = CoreGui
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+-- 1. THANH STATUS CỐ ĐỊNH Ở TRÊN ĐẦU
 local StatusBar = Instance.new("Frame")
 StatusBar.Name = "StatusBar"
 StatusBar.Size = UDim2.new(0, 380, 0, 40)
@@ -85,11 +90,12 @@ StatusLabel.TextSize = 14
 StatusLabel.Font = Enum.Font.SourceSansBold
 StatusLabel.Parent = StatusBar
 
+-- 2. MENU THÔNG TIN CHÍNH GIỮA MÀN HÌNH
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -160)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.Size = UDim2.new(0, 480, 0, 340)
+MainFrame.Position = UDim2.new(0.5, -240, 0.5, -170)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 MainFrame.BorderColor3 = Color3.fromRGB(212, 163, 89)
 MainFrame.BorderSizePixel = 1
 MainFrame.Active = true
@@ -97,28 +103,132 @@ MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
 local MenuTitle = Instance.new("TextLabel")
-MenuTitle.Size = UDim2.new(1, 0, 0, 40)
+MenuTitle.Size = UDim2.new(1, 0, 0, 35)
 MenuTitle.BackgroundTransparency = 1
 MenuTitle.Text = "Banana Stats Checker"
 MenuTitle.TextColor3 = Color3.fromRGB(212, 163, 89)
-MenuTitle.TextSize = 16
+MenuTitle.TextSize = 15
 MenuTitle.Font = Enum.Font.SourceSansBold
 MenuTitle.Parent = MainFrame
 
+-- Thanh kẻ ngang trang trí dưới tiêu đề
+local Line = Instance.new("Frame")
+Line.Size = UDim2.new(0, 400, 0, 1)
+Line.Position = UDim2.new(0.5, -200, 0, 40)
+Line.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+Line.BorderSizePixel = 0
+Line.Parent = MainFrame
+
+-- CỘT TRÁI: ACCOUNT STATS
+local LeftTitle = Instance.new("TextLabel")
+LeftTitle.Size = UDim2.new(0, 180, 0, 25)
+LeftTitle.Position = UDim2.new(0, 30, 0, 55)
+LeftTitle.BackgroundTransparency = 1
+LeftTitle.Text = "Account Stats"
+LeftTitle.TextColor3 = Color3.fromRGB(212, 163, 89)
+LeftTitle.TextSize = 14
+LeftTitle.Font = Enum.Font.SourceSansBold
+LeftTitle.TextXAlignment = Enum.TextXAlignment.Left
+LeftTitle.Parent = MainFrame
+
+-- Các Label thông số thật tự cập nhật theo Data Game
+local LvLabel = Instance.new("TextLabel")
+LvLabel.Size = UDim2.new(0, 180, 0, 20)
+LvLabel.Position = UDim2.new(0, 30, 0, 85)
+LvLabel.BackgroundTransparency = 1
+LvLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+LvLabel.TextSize = 13
+LvLabel.Font = Enum.Font.SourceSansBold
+LvLabel.TextXAlignment = Enum.TextXAlignment.Left
+LvLabel.Parent = MainFrame
+
+local RaceLabel = LvLabel:Clone()
+RaceLabel.Position = UDim2.new(0, 30, 0, 115)
+RaceLabel.Parent = MainFrame
+
+local BeliLabel = LvLabel:Clone()
+BeliLabel.Position = UDim2.new(0, 30, 0, 145)
+BeliLabel.Parent = MainFrame
+
+local FragLabel = LvLabel:Clone()
+FragLabel.Position = UDim2.new(0, 30, 0, 175)
+FragLabel.Parent = MainFrame
+
+-- CẬP NHẬT THÔNG SỐ TÀI KHOẢN LIÊN TỤC
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            LvLabel.Text = "Level: " .. tostring(plr.Data.Level.Value)
+            RaceLabel.Text = "Race: " .. tostring(plr.Data.Race.Value)
+            BeliLabel.Text = "Beli: " .. string.format("%d", plr.Data.Beli.Value)
+            FragLabel.Text = "Frag: " .. tostring(plr.Data.Fragments.Value)
+        end)
+    end
+end)
+
+-- CỘT PHẢI: ACCOUNT ITEMS
+local RightTitle = LeftTitle:Clone()
+RightTitle.Position = UDim2.new(0, 270, 0, 55)
+RightTitle.Text = "Account Items"
+RightTitle.Parent = MainFrame
+
+-- Nút Bật/Tắt Farm
 local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Name = "ToggleBtn"
-ToggleBtn.Size = UDim2.new(0, 200, 0, 40)
-ToggleBtn.Position = UDim2.new(0.5, -100, 0.5, -20)
+ToggleBtn.Size = UDim2.new(0, 160, 0, 35)
+ToggleBtn.Position = UDim2.new(0, 270, 0, 100)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 ToggleBtn.BorderColor3 = Color3.fromRGB(212, 163, 89)
 ToggleBtn.Text = "START AUTO FARM"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.TextSize = 14
+ToggleBtn.TextSize = 13
 ToggleBtn.Font = Enum.Font.SourceSansBold
 ToggleBtn.Parent = MainFrame
 
+-- PHẦN CHẤM TRÒN ĐỎ DƯỚI ĐÁY MENU GIỐNG ẢNH MẪU
+local ItemsFrame = Instance.new("Frame")
+ItemsFrame.Size = UDim2.new(1, 0, 0, 90)
+ItemsFrame.Position = UDim2.new(0, 0, 0, 240)
+ItemsFrame.BackgroundTransparency = 1
+ItemsFrame.Parent = MainFrame
+
+-- Kẻ một đường phân cách phía trên các item check
+local LowLine = Line:Clone()
+LowLine.Position = UDim2.new(0.5, -200, 0, -5)
+LowLine.Parent = ItemsFrame
+
+local function addItemCheck(name, pos)
+    local Dot = Instance.new("Frame")
+    Dot.Size = UDim2.new(0, 10, 0, 10)
+    Dot.Position = pos
+    Dot.BackgroundColor3 = Color3.fromRGB(230, 40, 40)
+    Dot.BorderSizePixel = 0
+    Dot.Parent = ItemsFrame
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(1, 0)
+    Corner.Parent = Dot
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0, 120, 0, 15)
+    Label.Position = UDim2.new(0, 16, 0, -3)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.TextSize = 12
+    Label.Font = Enum.Font.SourceSansBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Dot
+end
+
+addItemCheck("GodHuman", UDim2.new(0, 30, 0, 15))
+addItemCheck("Cursed Dual Katana", UDim2.new(0, 180, 0, 15))
+addItemCheck("Valkyrie Helm", UDim2.new(0, 340, 0, 15))
+addItemCheck("Soul Guitar", UDim2.new(0, 30, 0, 45))
+addItemCheck("Mirror Fractal", UDim2.new(0, 180, 0, 45))
+addItemCheck("Pull Lever", UDim2.new(0, 340, 0, 45))
+
+-- 3. NÚT TRÒN THU NHỎ CHỈ TẮT MENU GIỮA
 local CloseOpenBtn = Instance.new("TextButton")
-CloseOpenBtn.Name = "CloseOpenBtn"
 CloseOpenBtn.Size = UDim2.new(0, 45, 0, 45)
 CloseOpenBtn.Position = UDim2.new(0, 15, 0.25, 0)
 CloseOpenBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -136,7 +246,6 @@ local UiVisible = true
 CloseOpenBtn.MouseButton1Click:Connect(function()
     UiVisible = not UiVisible
     MainFrame.Visible = UiVisible
-    StatusBar.Visible = UiVisible
 end)
 
 ToggleBtn.MouseButton1Click:Connect(function()
@@ -154,47 +263,66 @@ ToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 ----------------------------------------------------------------
--- [CƠ CHẾ THÔNG MINH BỔ SUNG]
+-- [HỆ THỐNG LOGIC FARM VÀ AUTO TRANG BỊ VÕ MELEE]
 ----------------------------------------------------------------
 
--- 1. Tìm Trái Ác Quỷ rơi rớt trên map
-local function getFruit()
-    for _, v in ipairs(workspace:GetChildren()) do
-        if v:IsA("Tool") and (string.find(v.Name, "Fruit") or string.find(v.Name, "Trái")) then
-            return v
-        end
+-- Gửi lệnh chém liên tục từ xa
+local function hitMonster()
+    local combatRemote = ReplicatedStorage:FindFirstChild("RigControllerCombat") or ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("Validator")
+    if combatRemote then
+        combatRemote:FireServer("LeftClick")
     end
-    return nil
 end
 
--- 2. Tự động cất trái ác quỷ vào rương lưu trữ
-local function storeFruit()
+-- CƠ CHẾ THÔNG MINH: TỰ ĐỘNG SỬ DỤNG VÕ (MELEE) ĐỂ ĐÁNH QUÁI
+local function equipMeleeWeapon()
+    local backpack = plr.Backpack
     local character = plr.Character
+    
     if character then
-        local fruit = character:FindFirstChildOfClass("Tool")
-        if fruit and (string.find(fruit.Name, "Fruit") or string.find(fruit.Name, "Trái")) then
-            -- Gọi lệnh cất trái vào kho lưu trữ từ xa
-            CommF:InvokeServer("StoreFruit", fruit.Name, fruit)
+        -- Bước 1: Kiểm tra xem trên tay đã cầm sẵn võ (Melee) chưa
+        local currentTool = character:FindFirstChildOfClass("Tool")
+        if currentTool and currentTool.ToolTip == "Melee" then
+            return -- Đang cầm võ rồi thì không cần làm gì thêm
+        end
+        
+        -- Bước 2: Nếu chưa cầm hoặc đang cầm vũ khí khác, tìm võ (Melee) trong túi đồ
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool.ToolTip == "Melee" then
+                tool.Parent = character -- Đeo võ lên tay
+                break
+            end
         end
     end
 end
 
--- 3. Tự động mua võ chân (Dark Step) khi đủ tiền
+-- Tự động kiểm tra và nhặt + lưu trữ trái ác quỷ gốc
+local function processFruits()
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v:IsA("Tool") and string.find(v.Name, "Fruit") then
+            if v:FindFirstChild("Handle") then
+                _G.TargetCFrame = v.Handle.CFrame
+                task.wait(0.3)
+                if v.Parent == plr.Character and v:FindFirstChild("DataId") then
+                    CommF:InvokeServer("StoreFruit", v.DataId.Value, v)
+                end
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Tự động mua võ chân (Dark Step) khi có đủ 150k Beli
 local hasBoughtDarkStep = false
 local function autoBuyMelee()
     if not hasBoughtDarkStep and plr.Data.Beli.Value >= 150000 then
-        -- Gửi tín hiệu mua võ chân từ xa tới NPC Black Leg Teacher
         local buyResult = CommF:InvokeServer("BuyBlackLeg")
-        if buyResult then
-            hasBoughtDarkStep = true
-            StatusLabel.Text = "Hệ thống: Đã tự động mua Chân Hắc Cước!"
-        end
+        if buyResult then hasBoughtDarkStep = true end
     end
 end
 
-----------------------------------------------------------------
--- [LOGIC CODE FARM]
-----------------------------------------------------------------
+-- Tìm quái Bandit
 local function getMonster()
     for _, v in ipairs(workspace.Enemies:GetChildren()) do
         if v.Name == "Bandit" and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 and v:FindFirstChild("HumanoidRootPart") then
@@ -215,48 +343,29 @@ local function hasQuest()
     return questFrame and questFrame.Visible == true
 end
 
-local function fastAttack(monster)
-    local character = plr.Character
-    local tool = character and character:FindFirstChildOfClass("Tool")
-    
-    if tool and monster and monster:FindFirstChild("HumanoidRootPart") then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(Vector2.new(850, 520))
-        
-        local combatRemote = ReplicatedStorage:FindFirstChild("RigControllerCombat") or ReplicatedStorage:WaitForChild("Remotes"):FindFirstChild("Validator")
-        if combatRemote then
-            combatRemote:FireServer(monster.HumanoidRootPart.Position)
-        end
-    end
-end
-
--- Vòng lặp chính điều khiển toàn bộ logic thông minh
+-- VÒNG LẶP CHÍNH ĐIỀU KHIỂN TOÀN BỘ LOGIC
 task.spawn(function()
     while task.wait(0.1) do
         if _G.AutoFarm then
-            -- Luôn kiểm tra tiền để mua Melee trước
-            autoBuyMelee()
+            joinPirates() 
+            autoBuyMelee() 
             
-            -- ƯU TIÊN 1: Kiểm tra xem trên map có Trái Ác Quỷ nào không
-            local targetFruit = getFruit()
-            if targetFruit and targetFruit:FindFirstChild("Handle") then
-                StatusLabel.Text = "Phát hiện Trái Ác Quỷ! Đang bay tới nhặt..."
-                _G.TargetCFrame = targetFruit.Handle.CFrame
-                
-                -- Đợi nhặt lên tay rồi tự động lưu trữ
-                task.wait(0.5)
-                storeFruit()
-            else
-                -- ƯU TIÊN 2: Nếu không có Trái Ác Quỷ thì tiếp tục farm quái bình thường
+            -- Ưu tiên xử lý trái ác quỷ trước
+            local holdingFruit = processFruits()
+            
+            if not holdingFruit then
+                -- Nếu không có trái ác quỷ rơi thì chuyển qua farm quái
                 if not hasQuest() then
                     _G.TargetCFrame = NpcCFrame
                     CommF:InvokeServer("StartQuest", "BanditQuest", 1)
                 else
                     local targetMonster = getMonster()
                     if targetMonster then
-                        StatusLabel.Text = "Auto Farm: Level [Bandit]"
-                        _G.TargetCFrame = targetMonster.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0) * CFrame.Angles(math.rad(-90), 0, 0)
-                        fastAttack(targetMonster)
+                        -- Bay lên đầu quái tạo vùng an toàn (Safe Area)
+                        _G.TargetCFrame = targetMonster.HumanoidRootPart.CFrame * CFrame.new(0, 22, 0) * CFrame.Angles(math.rad(-90), 0, 0)
+                        
+                        equipMeleeWeapon() -- Luôn gọi cơ chế tự động cầm Võ (Melee) lên tay
+                        hitMonster()       -- Thực hiện đấm quái liên tục
                     else
                         _G.TargetCFrame = NpcCFrame
                     end
@@ -266,7 +375,7 @@ task.spawn(function()
     end
 end)
 
--- Vòng lặp xử lý di chuyển Bay (Fly) kết hợp Xuyên Tường (NoClip)
+-- VÒNG LẶP XỬ LÝ BAY (FLY) VÀ XUYÊN TƯỜNG (NOCLIP) TOÀN DIỆN
 RunService.Stepped:Connect(function()
     if _G.AutoFarm then
         local character = plr.Character
@@ -276,15 +385,13 @@ RunService.Stepped:Connect(function()
                     child.CanCollide = false
                 end
             end
-        end
-        
-        if _G.TargetCFrame then
-            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-            
-            if rootPart and humanoid and humanoid.Health > 0 then
-                rootPart.Velocity = Vector3.new(0, 0, 0)
-                rootPart.CFrame = _G.TargetCFrame
+            if _G.TargetCFrame then
+                local rootPart = character:FindFirstChild("HumanoidRootPart")
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if rootPart and humanoid and humanoid.Health > 0 then
+                    rootPart.Velocity = Vector3.new(0, 0, 0)
+                    rootPart.CFrame = _G.TargetCFrame
+                end
             end
         end
     end
